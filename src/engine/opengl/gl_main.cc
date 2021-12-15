@@ -40,6 +40,10 @@
 #include "m_misc.h"
 #include "g_actions.h"
 
+#ifdef ENABLE_GL4ES
+#include "gl4es.h"
+#endif
+
 int ViewWindowX = 0;
 int ViewWindowY = 0;
 int ViewWidth   = 0;
@@ -146,7 +150,11 @@ dboolean GL_CheckExtension(const char *ext) {
 //
 
 void* GL_RegisterProc(const char *address) {
+#ifdef ENABLE_GL4ES
+    void *proc = gl4esGetProcAddress(address);
+#else
     void *proc = SDL_GL_GetProcAddress(address);
+#endif
 
     if(!proc) {
         CON_Warnf("GL_RegisterProc: Failed to get proc address: %s", address);
@@ -579,7 +587,11 @@ static int GetVersionInt(const char* version) {
 //
 
 void GL_Init(void) {
+#ifdef ENABLE_GL4ES
+    gladLoadGLLoader(gl4esGetProcAddress);
+#else
     gladLoadGLLoader(SDL_GL_GetProcAddress);
+#endif
 
     gl_vendor = dglGetString(GL_VENDOR);
     I_Printf("GL_VENDOR: %s\n", gl_vendor);

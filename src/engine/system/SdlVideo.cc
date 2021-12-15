@@ -183,6 +183,7 @@ class SdlVideo : public IVideo {
     int lastmbtn_ {};
 
     void init_gl_() {
+#ifndef ENABLE_GL4ES
         switch (opengl_) {
         case OpenGLVer::gl14:
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
@@ -195,6 +196,7 @@ class SdlVideo : public IVideo {
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
             break;
         }
+#endif
 
         SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 0);
         SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 0);

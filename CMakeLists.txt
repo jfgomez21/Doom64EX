@@ -47,6 +47,9 @@ set(CMAKE_FIND_ROOT_PATH "${CMAKE_PREFIX_PATH}" "${CMAKE_FIND_ROOT_PATH}")
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 set(DATA_DIR "${CMAKE_SOURCE_DIR}/data")
 
+#TODO- make this conditional
+add_definitions(-DENABLE_GL4ES=${ENABLE_GL4ES})
+
 if(EXISTS "${CMAKE_BINARY_DIR}/conanbuildinfo.cmake")
   set(USE_CONAN ON)
   include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)

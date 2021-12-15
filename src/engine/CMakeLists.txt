@@ -203,6 +203,7 @@ set(SOURCES
   opengl/gl_main.cc
   opengl/gl_texture.cc
   opengl/glad.cc
+  opengl/gl4es.cc
 
   # parser
   parser/sc_main.cc
