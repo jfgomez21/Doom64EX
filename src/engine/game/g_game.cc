@@ -826,6 +826,62 @@ void G_DoCmdMouseMove(int x, int y) {
     pc->mousey += static_cast<int>((y * *v_msensitivityy) / 128);
 }
 
+//
+// G_DoCmdGamepadMove
+//
+
+extern IntProperty i_xinputscheme;
+extern FloatProperty i_rsticksensitivity;
+extern FloatProperty i_rstickthreshold;
+
+void G_DoCmdGamepadMove(event_t *ev)
+{
+    // Most of this is taken from kaiser's xinput.c
+    playercontrols_t *pc = &Controls;
+
+    if (ev->type == ev_gamepad) {
+        pc->flags |= PCF_GAMEPAD;
+
+        //
+        // left analog stick
+        //
+        if (ev->data3 == GAMEPAD_LEFT_STICK) {
+            auto y = static_cast<float>(ev->data2) * 0.0015f;
+
+            //
+            // classic scheme uses traditional turning for x-axis
+            //
+            if (*i_xinputscheme) {
+                auto turnspeed = (*i_rsticksensitivity) / (*i_rstickthreshold);
+
+                if (ev->data1 != 0) {
+                }
+
+            }
+            //
+            // modern scheme uses strafing for x-axis
+            //
+            else {
+                pc->joyx += static_cast<float>(ev->data1) * 0.0015f;
+            }
+            pc->joyy += y;
+        }
+        //
+        // right analog stick
+        //
+        else if (ev->data3 == GAMEPAD_RIGHT_STICK) {
+            auto turnspeed = (*i_rsticksensitivity) / (*i_rstickthreshold);
+            auto x = static_cast<float>(ev->data1) * (*i_rsticksensitivity) * 0.0015f;
+            auto y = static_cast<float>(ev->data2) * 0.0015f;
+
+            if (ev->data1 != 0) {
+            }
+
+            pc->mousex += x;
+            pc->mousey += -y;
+        }
+    }
+}
 
 //
 // G_ClearInput
@@ -977,8 +1033,7 @@ dboolean G_Responder(event_t* ev) {
         }
 
         if(demoplayback && gameaction == ga_nothing) {
-            if(ev->type == ev_keydown ||
-                    ev->type == ev_gamepad) {
+            if(ev->type == ev_keydown) {
                 G_CheckDemoStatus();
                 gameaction = ga_warpquick;
                 return true;
@@ -1001,8 +1056,7 @@ dboolean G_Responder(event_t* ev) {
     if(gamestate == GS_SKIPPABLE) {
         if(gameaction == ga_nothing) {
             if(ev->type == ev_keydown ||
-                    (ev->type == ev_mouse && ev->data1) ||
-                    ev->type == ev_gamepad) {
+                    (ev->type == ev_mouse && ev->data1)) {
                 gameaction = ga_title;
                 return true;
             }

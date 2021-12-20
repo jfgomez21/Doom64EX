@@ -423,6 +423,7 @@ dboolean G_ActionResponder(event_t *ev) {
         break;
 #else
     case ev_gamepad:
+        G_DoCmdGamepadMove(ev);
         break;
 #endif
     }

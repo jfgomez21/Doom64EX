@@ -4091,6 +4091,7 @@ static void M_DrawSaveGameFrontend(menu_t* def) {
 
     dglDisable(GL_TEXTURE_2D);
 
+#ifndef ENABLE_GL4ES
     //
     // draw back panels
     //
@@ -4156,6 +4157,77 @@ static void M_DrawSaveGameFrontend(menu_t* def) {
         def->y + 176
     );
     dglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#else
+    //for GL4ES, draw the outline panels first
+    //then draw the back panels
+    //this fixes the rendering issue caused by using
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+
+    //
+    // draw outline for panels
+    //
+    dglColor4ub(192, 192, 192, menualphacolor);
+    //
+    // save game panel
+    //
+    dglRecti(
+        def->x - 48,
+        def->y - 12,
+        def->x + 256,
+        def->y + 156
+    );
+    //
+    // thumbnail panel
+    //
+    dglRecti(
+        def->x + 272,
+        def->y - 12,
+        def->x + 464,
+        def->y + 116
+    );
+    //
+    // stats panel
+    //
+    dglRecti(
+        def->x + 272,
+        def->y + 124,
+        def->x + 464,
+        def->y + 176
+    );
+
+    //
+    // draw back panels
+    //
+    dglColor4ub(32, 32, 32, menualphacolor);
+    //
+    // save game panel
+    //
+    dglRecti(
+        def->x - 47,
+        def->y - 11,
+        def->x + 255,
+        def->y + 155
+    );
+    //
+    // thumbnail panel
+    //
+    dglRecti(
+        def->x + 273,
+        def->y - 11,
+        def->x + 463,
+        def->y + 115
+    );
+    //
+    // stats panel
+    //
+    dglRecti(
+        def->x + 273,
+        def->y + 125,
+        def->x + 463,
+        def->y + 175
+    );
+#endif
+
     dglEnable(GL_TEXTURE_2D);
 
     //
@@ -4413,6 +4485,30 @@ dboolean M_Responder(event_t* ev) {
         ch = KEY_ENTER;
         break;
     case BUTTON_B:
+        ch = KEY_DEL;
+        break;
+    }
+#else
+    switch(ch) {
+    case GAMEPAD_DPAD_UP:
+        ch = KEY_UPARROW;
+        break;
+    case GAMEPAD_DPAD_DOWN:
+        ch = KEY_DOWNARROW;
+        break;
+    case GAMEPAD_DPAD_LEFT:
+        ch = KEY_LEFTARROW;
+        break;
+    case GAMEPAD_DPAD_RIGHT:
+        ch = KEY_RIGHTARROW;
+        break;
+    case GAMEPAD_START:
+        ch = KEY_ESCAPE;
+        break;
+    case GAMEPAD_A:
+        ch = KEY_ENTER;
+        break;
+    case GAMEPAD_B:
         ch = KEY_DEL;
         break;
     }

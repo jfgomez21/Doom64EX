@@ -7,8 +7,18 @@
 #include <SDL_video.h>
 #include <common/doomstat.h>
 #include <renderer/r_main.h>
+#include <imp/App>
 
 namespace {
+  constexpr Sint32 s_deadzone = 8000;
+
+  void s_clamp(Sint32& axis)
+  {
+      if (axis < s_deadzone && axis > -s_deadzone) {
+          axis = 0;
+      }
+  }
+
   // Exclusive fullscreen by default on Windows only.
 #ifdef _WIN32
   constexpr auto fullscreen_default = 0;
@@ -17,6 +27,9 @@ namespace {
   constexpr auto fullscreen_default = 2;
   constexpr auto fullscreen_enum = Fullscreen::noborder;
 #endif
+  
+  SDL_GameController *s_controller {};
+  SDL_JoystickID s_controller_id = 0;
 
   int translate_scancode_(const SDL_Scancode key) {
       switch(key) {
@@ -145,6 +158,31 @@ namespace {
       }
   }
 
+  int translate_controller(int state)
+  {
+    switch (state) {
+    case SDL_CONTROLLER_BUTTON_A: return GAMEPAD_A;
+    case SDL_CONTROLLER_BUTTON_B: return GAMEPAD_B;
+    case SDL_CONTROLLER_BUTTON_X: return GAMEPAD_X;
+    case SDL_CONTROLLER_BUTTON_Y: return GAMEPAD_Y;
+
+    case SDL_CONTROLLER_BUTTON_BACK: return GAMEPAD_BACK;
+    case SDL_CONTROLLER_BUTTON_GUIDE: return GAMEPAD_GUIDE;
+    case SDL_CONTROLLER_BUTTON_START: return GAMEPAD_START;
+    case SDL_CONTROLLER_BUTTON_LEFTSTICK: return GAMEPAD_LSTICK;
+    case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return GAMEPAD_RSTICK;
+    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return GAMEPAD_LSHOULDER;
+    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return GAMEPAD_RSHOULDER;
+
+    case SDL_CONTROLLER_BUTTON_DPAD_UP: return GAMEPAD_DPAD_UP;
+    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return GAMEPAD_DPAD_DOWN;
+    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return GAMEPAD_DPAD_LEFT;
+    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return GAMEPAD_DPAD_RIGHT;
+
+    default: return GAMEPAD_INVALID;
+    }
+}
+
   int translate_mouse_(int state) {
       return 0
              | (state & SDL_BUTTON(SDL_BUTTON_LEFT)      ? 1 : 0)
@@ -172,6 +210,11 @@ FloatProperty v_macceleration { "v_MAcceleration", "Mouse acceleration", 0.0f };
 BoolProperty v_mlook { "v_MLook", "Mouse-look", true };
 BoolProperty v_mlookinvert { "v_MLookInvert", "Invert Y-Axis", false };
 BoolProperty v_yaxismove { "v_YAxisMove", "Move with the mouse", false };
+
+/* Gamepad Input */
+IntProperty i_xinputscheme { "i_XInputScheme", "", 0 };
+FloatProperty i_rsticksensitivity { "i_RStickSensitivity", "", 5.0};
+FloatProperty i_rstickthreshold { "i_RStickThreshold", "", 20.0};
 
 class SdlVideo : public IVideo {
     SDL_Window* sdl_window_ {};
@@ -257,6 +300,55 @@ class SdlVideo : public IVideo {
         return static_cast<int>(pow(static_cast<float>(val), factor));
     }
 
+    void init_game_controller(){
+	    Optional<String> path = app::find_data_file("gamecontrollerdb.txt");
+
+	    if(path){
+		    const char *str = path.value().c_str();
+
+		    I_Printf("Loading controller mappings from: %s\n", str);
+
+		    int result = SDL_GameControllerAddMappingsFromFile(str);
+
+		    if(result > 0){
+			    I_Printf("Controller mappings found: %d\n", result);
+		    }
+		    else if(result < 0){
+			    I_Printf("Failed to load controller mappings: %s\n", SDL_GetError());
+		    }
+	    }
+
+	    int joystickCount = SDL_NumJoysticks();
+
+	    if(joystickCount > 0){
+		    int index = 0;
+
+		    while(s_controller == NULL && index < joystickCount){
+			    if(SDL_IsGameController(index)){
+				    s_controller = SDL_GameControllerOpen(index);
+
+				    if(s_controller){
+					    I_Printf("Controller added: %d\n", SDL_GameControllerNameForIndex(index));
+
+					    s_controller_id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(s_controller));
+				    }
+				    else{
+					    I_Printf("Failed to open controller %d: %s\n", index, SDL_GetError());
+				    }
+			    }
+
+			    index++;
+		    }
+
+		    if(s_controller == NULL){
+			    I_Printf("No Controllers found\n");
+		    }
+	    }
+	    else{
+		    I_Printf("No Controllers found\n");
+	    }
+    }
+
 public:
     SdlVideo(OpenGLVer opengl):
         opengl_(opengl)
@@ -296,6 +388,7 @@ public:
         }
 
         set_mode(mode);
+	init_game_controller();
     }
 
     ~SdlVideo()
@@ -496,6 +589,43 @@ public:
                 D_PostEvent(&doom);
                 break;
 
+	    case SDL_CONTROLLERDEVICEADDED:
+		if(s_controller == NULL){
+			s_controller = SDL_GameControllerOpen(e.cdevice.which);
+
+			if(s_controller){
+				I_Printf("Controller added: %s\n", SDL_GameControllerNameForIndex(e.cdevice.which));
+
+				s_controller_id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(s_controller));
+			}
+			else{
+				I_Printf("Failed to open controller: %s\n", SDL_GetError());
+			}
+
+			assert(s_controller);
+		}
+
+		break;
+
+	    case SDL_CONTROLLERDEVICEREMOVED:
+		if(s_controller_id == e.cdevice.which){
+			SDL_GameControllerClose(s_controller);
+
+			I_Printf("Controlled removed\n");
+
+			s_controller = nullptr;
+			s_controller_id = 0;
+		}
+		break;
+
+	    case SDL_CONTROLLERBUTTONDOWN:
+	    case SDL_CONTROLLERBUTTONUP:
+		doom.type = (e.type == SDL_CONTROLLERBUTTONDOWN) ? ev_keydown : ev_keyup;
+		doom.data1 = translate_controller(e.cbutton.button);
+		D_PostEvent(&doom);
+
+		break;
+
             case SDL_WINDOWEVENT:
                 switch (e.window.event) {
                 case SDL_WINDOWEVENT_FOCUS_GAINED:
@@ -529,6 +659,64 @@ public:
         }
 
         int x, y;
+
+	if (s_controller) {
+		event_t ev {};
+
+		x = SDL_GameControllerGetAxis(s_controller, SDL_CONTROLLER_AXIS_LEFTX);
+		y = SDL_GameControllerGetAxis(s_controller, SDL_CONTROLLER_AXIS_LEFTY);
+
+		s_clamp(x);
+		s_clamp(y);
+
+		ev.type = ev_gamepad;
+		ev.data1 = x;
+		ev.data2 = -y;
+		ev.data3 = GAMEPAD_LEFT_STICK;
+		D_PostEvent(&ev);
+
+		x = SDL_GameControllerGetAxis(s_controller, SDL_CONTROLLER_AXIS_RIGHTX);
+		y = SDL_GameControllerGetAxis(s_controller, SDL_CONTROLLER_AXIS_RIGHTY);
+
+		s_clamp(x);
+		s_clamp(y);
+
+		ev.type = ev_gamepad;
+		ev.data1 = x;
+		ev.data2 = y;
+		ev.data3 = GAMEPAD_RIGHT_STICK;
+		D_PostEvent(&ev);
+
+		static bool old_ltrigger = false;
+		static bool old_rtrigger = false;
+
+		auto z = SDL_GameControllerGetAxis(s_controller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+		if (z >= 0x4000 && !old_ltrigger) {
+			old_ltrigger = true;
+			ev.type = ev_keydown;
+			ev.data1 = GAMEPAD_LTRIGGER;
+			D_PostEvent(&ev);
+		} else if (z < 0x4000 && old_ltrigger) {
+			old_ltrigger = false;
+			ev.type = ev_keyup;
+			ev.data1 = GAMEPAD_LTRIGGER;
+			D_PostEvent(&ev);
+		}
+
+		z = SDL_GameControllerGetAxis(s_controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+		if (z >= 0x4000 && !old_rtrigger) {
+			old_rtrigger = true;
+			ev.type = ev_keydown;
+			ev.data1 = GAMEPAD_RTRIGGER;
+			D_PostEvent(&ev);
+		} else if (z < 0x4000 && old_rtrigger) {
+			old_rtrigger = false;
+			ev.type = ev_keyup;
+			ev.data1 = GAMEPAD_RTRIGGER;
+			D_PostEvent(&ev);
+		}
+	}
+
         SDL_GetRelativeMouseState(&x, &y);
         auto btn = SDL_GetMouseState(&mouse_x, &mouse_y);
         if (x != 0 || y != 0 || btn || (lastmbtn_ != btn)) {
@@ -540,6 +728,10 @@ public:
             D_PostEvent(&ev);
             lastmbtn_ = btn;
         }
+    }
+
+    bool has_controller(){
+	return s_controller;
     }
 };
 
