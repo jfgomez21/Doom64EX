@@ -4091,7 +4091,6 @@ static void M_DrawSaveGameFrontend(menu_t* def) {
 
     dglDisable(GL_TEXTURE_2D);
 
-#ifndef ENABLE_GL4ES
     //
     // draw back panels
     //
@@ -4124,6 +4123,7 @@ static void M_DrawSaveGameFrontend(menu_t* def) {
         def->y + 176
     );
 
+#ifndef ENABLE_GL4ES
     //
     // draw outline for panels
     //
@@ -4158,74 +4158,29 @@ static void M_DrawSaveGameFrontend(menu_t* def) {
     );
     dglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 #else
-    //for GL4ES, draw the outline panels first
-    //then draw the back panels
-    //this fixes the rendering issue caused by using
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+    //for GL4ES draw the outlines using lines 
+    //instead of using glPolygonMode
 
     //
     // draw outline for panels
     //
     dglColor4ub(192, 192, 192, menualphacolor);
-    //
-    // save game panel
-    //
-    dglRecti(
-        def->x - 48,
-        def->y - 12,
-        def->x + 256,
-        def->y + 156
-    );
-    //
-    // thumbnail panel
-    //
-    dglRecti(
-        def->x + 272,
-        def->y - 12,
-        def->x + 464,
-        def->y + 116
-    );
-    //
-    // stats panel
-    //
-    dglRecti(
-        def->x + 272,
-        def->y + 124,
-        def->x + 464,
-        def->y + 176
-    );
 
-    //
-    // draw back panels
-    //
-    dglColor4ub(32, 32, 32, menualphacolor);
-    //
-    // save game panel
-    //
-    dglRecti(
-        def->x - 47,
-        def->y - 11,
-        def->x + 255,
-        def->y + 155
-    );
-    //
-    // thumbnail panel
-    //
-    dglRecti(
-        def->x + 273,
-        def->y - 11,
-        def->x + 463,
-        def->y + 115
-    );
-    //
-    // stats panel
-    //
-    dglRecti(
-        def->x + 273,
-        def->y + 125,
-        def->x + 463,
-        def->y + 175
-    );
+    int coords[3][8] = {
+	{-48, -12, 256, -12, 256 ,156, -48, 156}, //save game panel
+	{272, -12, 464, -12, 464, 116, 272, 116}, //thumbnail panel
+	{272, 124, 464, 124, 464, 176, 272, 176} //stats panel
+    };
+    
+    for(int i = 0; i < 3; i++){
+	    dglBegin(GL_LINE_LOOP);
+
+	    for(int j = 0; j < 8; j += 2){
+		glVertex2i(def->x + coords[i][j], def->y + coords[i][j + 1]);
+	    }
+
+	    dglEnd();
+    }
 #endif
 
     dglEnable(GL_TEXTURE_2D);
